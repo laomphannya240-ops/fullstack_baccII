@@ -28,6 +28,7 @@ class StoreExerciseRequest extends FormRequest
             'type' => ['required', Rule::in(['mcq', 'true_false', 'short_answer', 'numerical'])],
             'question_km' => ['required', 'string'],
             'question_en' => ['nullable', 'string'],
+            'image' => ['nullable', 'file', 'image', 'max:5120'],
             'explanation_km' => ['nullable', 'string'],
             'explanation_en' => ['nullable', 'string'],
             'correct_answer' => [Rule::requiredIf(in_array($type, ['short_answer', 'numerical'], true)), 'nullable', 'string', 'max:255'],

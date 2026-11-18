@@ -11,6 +11,11 @@ export const loadTracks = () => collection('/admin/tracks').then((tracks) => tra
     label: track.name_en || track.name_km || track.slug,
 })));
 
+export const loadStudents = () => collection('/admin/students').then((students) => students.map((student) => ({
+    value: student.id,
+    label: `${student.name} (${student.email})`,
+})));
+
 export const loadSubjects = () => collection('/admin/subjects').then((subjects) => subjects.map((subject) => ({
     value: subject.id,
     label: subject.name_en || subject.name_km || subject.slug,

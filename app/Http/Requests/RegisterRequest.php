@@ -21,7 +21,6 @@ class RegisterRequest extends FormRequest
             'name' => ['required', 'string', 'max:255'],
             'email' => ['required', 'email', 'max:255', 'unique:users,email'],
             'password' => ['required', 'confirmed', Password::min(8)],
-            'study_track_id' => ['required', 'integer', 'exists:study_tracks,id,is_active,1'],
         ];
     }
 }

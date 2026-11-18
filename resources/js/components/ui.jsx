@@ -104,6 +104,7 @@ export function StatCard({ icon: Icon, label, value, hint, tone = 'brand' }) {
         gold: 'bg-amber-50 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300',
         sky: 'bg-sky-50 text-sky-700 dark:bg-sky-900/30 dark:text-sky-300',
         violet: 'bg-violet-50 text-violet-700 dark:bg-violet-900/30 dark:text-violet-300',
+        green: 'bg-emerald-50 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300',
     };
 
     return (
@@ -239,6 +240,7 @@ export function Badge({ children, tone = 'slate' }) {
         amber: 'bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-200',
         red: 'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-200',
         sky: 'bg-sky-100 text-sky-800 dark:bg-sky-900/40 dark:text-sky-200',
+        violet: 'bg-violet-100 text-violet-800 dark:bg-violet-900/40 dark:text-violet-200',
     };
 
     return <span className={`chip ${tones[tone] || tones.slate}`}>{children}</span>;

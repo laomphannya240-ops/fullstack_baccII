@@ -20,6 +20,7 @@ class AdminLessonController extends Controller
             ->withCount('exercises')
             ->when($request->integer('chapter_id'), fn ($query, $id) => $query->where('chapter_id', $id))
             ->when($request->integer('subject_id'), fn ($query, $id) => $query->whereHas('chapter', fn ($builder) => $builder->where('subject_id', $id)))
+            ->when($request->has('is_reference'), fn ($query) => $query->where('is_reference', $request->boolean('is_reference')))
             ->orderBy('sort_order')
             ->paginate($request->integer('per_page', 20));
 

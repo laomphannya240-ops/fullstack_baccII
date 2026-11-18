@@ -1,6 +1,6 @@
 import { ArrowLeft, BookOpen, Download, FileText, Megaphone, Search } from 'lucide-react';
 import { useEffect, useState } from 'react';
-import { Link, useParams } from 'react-router-dom';
+import { Link, useParams, useSearchParams } from 'react-router-dom';
 import { Badge, EmptyState, ErrorState, LoadingState } from '../../components/ui';
 import { useLocale } from '../../contexts/LocaleContext';
 import { api, getErrorMessage, unwrap, unwrapMeta } from '../../lib/api';
@@ -36,9 +36,26 @@ function usePublicList(endpoint, params = {}) {
 }
 
 export function Subjects() {
-    const { pick, t } = useLocale();
+    const { locale, pick, t } = useLocale();
+    const [searchParams, setSearchParams] = useSearchParams();
     const [search, setSearch] = useState('');
-    const { items, loading, error } = usePublicList('/subjects', { search, per_page: 50 });
+    const trackSlug = searchParams.get('track_slug') || '';
+    const { items, loading, error } = usePublicList('/subjects', {
+        search,
+        track_slug: trackSlug || undefined,
+        per_page: 50,
+    });
+    const { items: tracks } = usePublicList('/tracks', { per_page: 50 });
+
+    function setTrack(nextSlug) {
+        const next = new URLSearchParams(searchParams);
+        if (nextSlug) {
+            next.set('track_slug', nextSlug);
+        } else {
+            next.delete('track_slug');
+        }
+        setSearchParams(next);
+    }
 
     return (
         <div className="mx-auto max-w-7xl px-4 py-12 sm:px-6 lg:px-8">
@@ -52,6 +69,21 @@ export function Subjects() {
             <div className="relative mx-auto mt-8 max-w-md">
                 <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-slate-400" />
                 <input type="search" value={search} onChange={(event) => setSearch(event.target.value)} placeholder={`${t('Search')} subjects...`} className="input-field pl-9" />
+            </div>
+            <div className="mx-auto mt-5 flex max-w-3xl flex-wrap justify-center gap-2">
+                <button type="button" onClick={() => setTrack('')} className={`chip ${!trackSlug ? 'bg-brand-600 text-white' : 'bg-slate-200 text-slate-700 dark:bg-slate-800 dark:text-slate-300'}`}>
+                    {t('All tracks')}
+                </button>
+                {tracks.map((track) => (
+                    <button
+                        key={track.id}
+                        type="button"
+                        onClick={() => setTrack(track.slug)}
+                        className={`chip ${trackSlug === track.slug ? 'bg-brand-600 text-white' : 'bg-slate-200 text-slate-700 dark:bg-slate-800 dark:text-slate-300'}`}
+                    >
+                        {locale === 'km' ? track.name_km : track.name_en}
+                    </button>
+                ))}
             </div>
             {loading ? (
                 <LoadingState />
@@ -74,9 +106,9 @@ export function Subjects() {
                                 <p className="mt-1 line-clamp-2 text-xs text-slate-500 dark:text-slate-400">
                                     {pick(subject, 'description') || 'Lessons, exercises and mock exams.'}
                                 </p>
-                                <div className="mt-4 flex items-center justify-between text-xs text-slate-500 dark:text-slate-400">
+                                <div className="mt-4 flex items-center justify-between gap-2 text-xs text-slate-500 dark:text-slate-400">
                                     <span>{subject.chapters_count ?? '—'} chapters</span>
-                                    <span>{subject.lessons_count ?? '—'} lessons</span>
+                                    <span className="truncate">{pick(subject.study_track, 'name') || 'Grade 12'}</span>
                                 </div>
                             </div>
                         </Link>
@@ -120,7 +152,7 @@ export function SubjectDetail() {
             </Link>
             <div className="card mt-5 overflow-hidden">
                 <div className="bg-gradient-to-r from-brand-700 to-teal-600 p-7 text-white">
-                    <Badge className="bg-white/20 text-white">{pick(subject.track, 'name') || 'Grade 12'}</Badge>
+                    <Badge tone="slate">{pick(subject.study_track, 'name') || 'Grade 12'}</Badge>
                     <h1 className="mt-3 text-3xl font-bold">{pick(subject, 'name')}</h1>
                     <p className="mt-2 max-w-2xl text-sm text-brand-50/90">{pick(subject, 'description')}</p>
                 </div>

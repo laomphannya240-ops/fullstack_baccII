@@ -10,7 +10,7 @@ use Illuminate\Database\Eloquent\Relations\MorphMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
 #[Fillable([
-    'subject_id', 'chapter_id', 'lesson_id', 'type', 'question_km', 'question_en',
+    'subject_id', 'chapter_id', 'lesson_id', 'type', 'question_km', 'question_en', 'image_path',
     'explanation_km', 'explanation_en', 'correct_answer', 'accepted_answers',
     'points', 'difficulty', 'sort_order', 'is_published',
 ])]

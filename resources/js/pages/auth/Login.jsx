@@ -45,7 +45,7 @@ export default function Login() {
         setSubmitting(true);
 
         try {
-            const user = await login({ email: values.email, password: values.password });
+            const user = await login({ email: values.email, password: values.password, remember: values.remember });
             toast.success(`Welcome back, ${user.name}!`);
             const destination = location.state?.from?.pathname || (user.role === 'admin' ? '/admin' : '/app');
             navigate(destination, { replace: true });
@@ -69,8 +69,8 @@ export default function Login() {
                     </div>
                     <div className="rounded-2xl border border-white/20 bg-white/10 p-5 text-sm backdrop-blur">
                         <p className="font-semibold">Demo accounts</p>
-                        <p className="mt-2 font-mono text-xs text-brand-50">student@demo.test / password</p>
-                        <p className="font-mono text-xs text-brand-50">admin@demo.test / password</p>
+                        <p className="mt-2 font-mono text-xs text-brand-50">student@bacii.test / password</p>
+                        <p className="font-mono text-xs text-brand-50">admin@bacii.test / password</p>
                     </div>
                     <div className="pointer-events-none absolute -bottom-16 -right-16 size-64 rounded-full bg-white/10 blur-2xl" />
                 </div>

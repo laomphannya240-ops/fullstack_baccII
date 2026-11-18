@@ -21,10 +21,21 @@ class LessonController extends Controller
         $lessons = Lesson::query()
             ->with(['chapter.subject:id,slug,name_en,name_km,study_track_id,is_active'])
             ->when($request->integer('chapter_id'), fn ($query, $chapterId) => $query->where('chapter_id', $chapterId))
-            ->when(! ($user && $user->isAdmin()), fn ($query) => $query->where('is_published', true))
-            ->when($user && ! $user->isAdmin() && $user->study_track_id, function ($query) use ($user): void {
-                $query->whereHas('chapter.subject', fn ($subjectQuery) => $subjectQuery->where('study_track_id', $user->study_track_id));
+            ->when($request->integer('subject_id'), fn ($query, $subjectId) => $query->whereHas('chapter', fn ($chapterQuery) => $chapterQuery->where('subject_id', $subjectId)))
+            ->when($request->has('is_reference'), fn ($query) => $query->where('is_reference', $request->boolean('is_reference')))
+            ->when($request->string('search')->toString() !== '', function ($query) use ($request): void {
+                $term = $request->string('search')->toString();
+                $query->where(function ($builder) use ($term): void {
+                    $builder->where('title_en', 'like', "%{$term}%")
+                        ->orWhere('title_km', 'like', "%{$term}%")
+                        ->orWhere('summary_en', 'like', "%{$term}%")
+                        ->orWhere('summary_km', 'like', "%{$term}%");
+                });
             })
+            ->when($request->string('track_slug')->toString() !== '', function ($query) use ($request): void {
+                $query->whereHas('chapter.subject.studyTrack', fn ($trackQuery) => $trackQuery->where('slug', $request->string('track_slug')->toString()));
+            })
+            ->when(! ($user && $user->isAdmin()), fn ($query) => $query->where('is_published', true))
             ->orderBy('sort_order')
             ->paginate($request->integer('per_page', 20));
 
@@ -41,7 +52,7 @@ class LessonController extends Controller
         return ApiResponse::success(LessonResource::collection($lessons), null, ApiResponse::pagination($lessons));
     }
 
-    public function show(Request $request, Lesson $lesson): JsonResponse
+    public function show(Request $request, Lesson $lesson, ActivityService $activities): JsonResponse
     {
         $user = $request->user();
         $lesson->load(['chapter.subject.studyTrack', 'exercises' => fn ($query) => $query->where('is_published', true)->orderBy('sort_order')->with('options')]);
@@ -49,8 +60,19 @@ class LessonController extends Controller
         ContentAccess::assertPublished($lesson);
         ContentAccess::assertSubjectAvailable($lesson->chapter->subject, $user);
 
+        if ($lesson->is_reference) {
+            $activities->log(
+                $user,
+                'reference_viewed',
+                $lesson->chapter->subject_id,
+                $lesson->id,
+                'Viewed reference: '.$lesson->title_en,
+            );
+        }
+
         $neighbors = Lesson::where('chapter_id', $lesson->chapter_id)
             ->where('is_published', true)
+            ->where('is_reference', $lesson->is_reference)
             ->orderBy('sort_order')
             ->get(['id', 'slug', 'title_en', 'title_km', 'sort_order']);
 

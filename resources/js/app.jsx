@@ -16,8 +16,10 @@ import AdminAnnouncements from './pages/admin/Announcements';
 import AdminCategories from './pages/admin/Categories';
 import AdminChapters from './pages/admin/Chapters';
 import AdminDashboard from './pages/admin/Dashboard';
+import AdminExerciseResults from './pages/admin/ExerciseResults';
 import AdminExercises from './pages/admin/Exercises';
 import AdminLessons from './pages/admin/Lessons';
+import AdminReference from './pages/admin/Reference';
 import AdminMaterials from './pages/admin/Materials';
 import AdminMockExams from './pages/admin/MockExams';
 import AdminProfile from './pages/admin/Profile';
@@ -34,6 +36,8 @@ import HistoryPage from './pages/student/History';
 import { LessonReader, StudentMaterials, StudentSubjects, SubjectOverview } from './pages/student/Learning';
 import ProfilePage from './pages/student/ProfilePage';
 import StudentProgressPage from './pages/student/Progress';
+import ReferencePage from './pages/student/Reference';
+import { SciencePage, SocialSciencePage } from './pages/student/Tracks';
 import { QuizzesPage, QuizAttemptPage } from './pages/student/Quizzes';
 import SelectTrackPage from './pages/student/SelectTrack';
 import '../css/app.css';
@@ -71,6 +75,9 @@ function App() {
                 <Route element={<ProtectedRoute role="student" />}>
                     <Route path="app" element={<StudentLayout />}>
                         <Route index element={<StudentDashboard />} />
+                        <Route path="science" element={<SciencePage />} />
+                        <Route path="social-science" element={<SocialSciencePage />} />
+                        <Route path="reference" element={<ReferencePage />} />
                         <Route path="subjects" element={<StudentSubjects />} />
                         <Route path="subjects/:id" element={<SubjectOverview />} />
                         <Route path="lessons/:id" element={<LessonReader />} />
@@ -97,7 +104,9 @@ function App() {
                         <Route path="subjects" element={<AdminSubjects />} />
                         <Route path="chapters" element={<AdminChapters />} />
                         <Route path="lessons" element={<AdminLessons />} />
+                        <Route path="reference" element={<AdminReference />} />
                         <Route path="exercises" element={<AdminExercises />} />
+                        <Route path="exercise-results" element={<AdminExerciseResults />} />
                         <Route path="quizzes" element={<AdminQuizzes />} />
                         <Route path="exams" element={<AdminMockExams />} />
                         <Route path="materials" element={<AdminMaterials />} />

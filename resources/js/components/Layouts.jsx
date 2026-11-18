@@ -1,12 +1,11 @@
 import {
     BookOpen,
-    Bookmark,
     CalendarClock,
     ChevronDown,
     ClipboardList,
     FileText,
     GraduationCap,
-    History,
+    Landmark,
     LayoutDashboard,
     LibraryBig,
     LogOut,
@@ -208,14 +207,12 @@ function DashboardShell({ role }) {
 
     const studentLinks = [
         { to: '/app', icon: LayoutDashboard, label: 'Dashboard', end: true },
-        { to: '/app/subjects', icon: LibraryBig, label: 'Subjects' },
-        { to: '/app/exercises', icon: NotebookPen, label: 'Exercises' },
-        { to: '/app/quizzes', icon: ClipboardList, label: 'Quizzes' },
-        { to: '/app/exams', icon: CalendarClock, label: 'Mock Exams' },
-        { to: '/app/progress', icon: TrendingUp, label: 'Progress' },
-        { to: '/app/bookmarks', icon: Bookmark, label: 'Bookmarks' },
-        { to: '/app/materials', icon: FileText, label: 'Materials' },
-        { to: '/app/history', icon: History, label: 'History' },
+        { to: '/app/science', icon: LibraryBig, label: 'Science' },
+        { to: '/app/social-science', icon: Landmark, label: 'Social Science' },
+        { to: '/app/exercises', icon: NotebookPen, label: 'Practice Exercises' },
+        { to: '/app/reference', icon: BookOpen, label: 'Formula / Theory' },
+        { to: '/app/progress', icon: TrendingUp, label: 'My Progress' },
+        { to: '/app/profile', icon: UserRound, label: 'Profile' },
     ];
 
     const adminLinks = [
@@ -226,7 +223,9 @@ function DashboardShell({ role }) {
         { to: '/admin/subjects', icon: LibraryBig, label: 'Subjects' },
         { to: '/admin/chapters', icon: BookOpen, label: 'Chapters' },
         { to: '/admin/lessons', icon: NotebookPen, label: 'Lessons' },
+        { to: '/admin/reference', icon: BookOpen, label: 'Reference content' },
         { to: '/admin/exercises', icon: ClipboardList, label: 'Exercises' },
+        { to: '/admin/exercise-results', icon: ClipboardList, label: 'Exercise results' },
         { to: '/admin/quizzes', icon: ClipboardList, label: 'Quizzes' },
         { to: '/admin/exams', icon: CalendarClock, label: 'Mock Exams' },
         { to: '/admin/materials', icon: FileText, label: 'Materials' },

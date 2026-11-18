@@ -18,19 +18,20 @@ class SubjectController extends Controller
 
         $subjects = Subject::query()
             ->with(['studyTrack:id,slug,name_en,name_km'])
-            ->withCount('chapters')
+            ->withCount(['chapters', 'lessons', 'exercises'])
             ->when($request->string('search')->toString() !== '', function ($query) use ($request): void {
                 $term = $request->string('search')->toString();
                 $query->where(function ($builder) use ($term): void {
                     $builder->where('name_en', 'like', "%{$term}%")
-                        ->orWhere('name_km', 'like', "%{$term}%");
+                        ->orWhere('name_km', 'like', "%{$term}%")
+                        ->orWhere('slug', 'like', "%{$term}%");
                 });
             })
             ->when(! ($user && $user->isAdmin()), function ($query): void {
                 $query->where('is_active', true);
             })
-            ->when($user && ! $user->isAdmin() && $user->study_track_id, function ($query) use ($user): void {
-                $query->where('study_track_id', $user->study_track_id);
+            ->when($request->string('track_slug')->toString() !== '', function ($query) use ($request): void {
+                $query->whereHas('studyTrack', fn ($trackQuery) => $trackQuery->where('slug', $request->string('track_slug')->toString()));
             })
             ->when($request->integer('track_id'), fn ($query, $trackId) => $query->where('study_track_id', $trackId))
             ->orderBy('sort_order')

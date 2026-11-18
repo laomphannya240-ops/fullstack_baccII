@@ -8,6 +8,7 @@ import {
     Download,
     FileText,
     LibraryBig,
+    Sparkles,
 } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
@@ -114,7 +115,7 @@ export function StudentSubjects() {
 
 export function SubjectOverview() {
     const { id } = useParams();
-    const { pick, t } = useLocale();
+    const { locale, pick, t } = useLocale();
     const [subject, setSubject] = useState(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
@@ -134,6 +135,8 @@ export function SubjectOverview() {
         return <ErrorState message={error || 'Subject not found.'} />;
     }
 
+    const referenceLessons = (subject.chapters || []).flatMap((chapter) => chapter.lessons || []).filter((lesson) => lesson.is_reference);
+
     return (
         <>
             <Link to="/app/subjects" className="inline-flex items-center gap-1.5 text-sm text-slate-500 hover:text-brand-600">
@@ -146,11 +149,32 @@ export function SubjectOverview() {
                     <p className="mt-2 max-w-2xl text-sm text-white/90">{pick(subject, 'description')}</p>
                     <div className="mt-5 flex flex-wrap gap-2">
                         <Link to={`/app/exercises?subject_id=${subject.id}`} className="btn-secondary bg-white/15 text-white hover:bg-white/25">{t('Exercises')}</Link>
+                        <Link to="/app/reference" className="btn-secondary bg-white/15 text-white hover:bg-white/25">{t('Formula / Theory')}</Link>
                         <Link to={`/app/quizzes?subject_id=${subject.id}`} className="btn-secondary bg-white/15 text-white hover:bg-white/25">{t('Quizzes')}</Link>
                         <Link to={`/app/exams?subject_id=${subject.id}`} className="btn-secondary bg-white/15 text-white hover:bg-white/25">{t('Mock Exams')}</Link>
                     </div>
                 </div>
                 <div className="p-6">
+                    {referenceLessons.length > 0 && (
+                        <section className="mb-7">
+                            <div className="flex items-center gap-2">
+                                <Sparkles className="size-5 text-brand-600" />
+                                <h2 className="text-lg font-semibold">{t('Quick references')}</h2>
+                            </div>
+                            <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">{t('Formula sheets, definitions and exam notes for this subject.')}</p>
+                            <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                                {referenceLessons.map((reference) => (
+                                    <Link key={reference.id} to={`/app/lessons/${reference.id}`} className="flex items-center justify-between rounded-xl border border-brand-200 bg-brand-50/60 px-3 py-2.5 text-sm transition hover:border-brand-400 dark:border-brand-900 dark:bg-brand-900/20 dark:hover:border-brand-700">
+                                        <span className="flex min-w-0 items-center gap-2">
+                                            <BookOpen className="size-4 shrink-0 text-brand-600" />
+                                            <span className="truncate">{pick(reference, 'title')}</span>
+                                        </span>
+                                        <ArrowRight className="size-4 shrink-0 text-brand-600" />
+                                    </Link>
+                                ))}
+                            </div>
+                        </section>
+                    )}
                     <h2 className="text-lg font-semibold">{t('Chapters')}</h2>
                     {(subject.chapters || []).length === 0 ? (
                         <div className="mt-4"><EmptyState title="No chapters available" /></div>
@@ -170,9 +194,10 @@ export function SubjectOverview() {
                                     <div className="mt-4 grid gap-2 sm:grid-cols-2">
                                         {(chapter.lessons || []).map((lesson) => (
                                             <Link key={lesson.id} to={`/app/lessons/${lesson.id}`} className="flex items-center justify-between rounded-lg bg-slate-50 px-3 py-2.5 text-sm transition hover:bg-brand-50 dark:bg-slate-800/60 dark:hover:bg-slate-800">
-                                                <span className="flex items-center gap-2 truncate">
+                                                <span className="flex min-w-0 items-center gap-2">
                                                     <BookOpen className="size-4 shrink-0 text-brand-600" />
                                                     <span className="truncate">{pick(lesson, 'title')}</span>
+                                                    {lesson.is_reference && <Badge tone="violet">{locale === 'km' ? 'យោង' : 'Ref'}</Badge>}
                                                 </span>
                                                 <ArrowRight className="size-4 shrink-0 text-slate-400" />
                                             </Link>
@@ -236,29 +261,42 @@ export function LessonReader() {
         return <ErrorState message={error || 'Lesson not found.'} />;
     }
 
-    const content = locale === 'km' ? lesson.content_km : lesson.content_en || lesson.content_km;
+    const isReference = Boolean(lesson.is_reference);
+    const content = locale === 'km'
+        ? lesson.content_km || lesson.content_en
+        : lesson.content_en || lesson.content_km;
 
     return (
         <>
             <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
-                <Link to={`/app/subjects/${lesson.chapter?.subject?.id}`} className="inline-flex items-center gap-1.5 text-sm text-slate-500 hover:text-brand-600">
-                    <ArrowLeft className="size-4" /> {pick(lesson.chapter?.subject, 'name')}
+                <Link
+                    to={isReference ? '/app/reference' : `/app/subjects/${lesson.chapter?.subject?.id}`}
+                    className="inline-flex items-center gap-1.5 text-sm text-slate-500 hover:text-brand-600"
+                >
+                    <ArrowLeft className="size-4" /> {isReference ? t('Formula / Theory') : pick(lesson.chapter?.subject, 'name')}
                 </Link>
                 <div className="flex gap-2">
                     <button type="button" onClick={toggleBookmark} className="btn-secondary">
                         <Bookmark className={`size-4 ${lesson.bookmarked ? 'fill-brand-600 text-brand-600' : ''}`} />
                         {lesson.bookmarked ? 'Bookmarked' : 'Bookmark'}
                     </button>
-                    <button type="button" onClick={toggleComplete} className="btn-primary" disabled={saving}>
-                        {lesson.is_completed ? <CheckCircle2 className="size-4" /> : <Circle className="size-4" />}
-                        {lesson.is_completed ? 'Completed' : t('Mark complete')}
-                    </button>
+                    {!isReference && (
+                        <button type="button" onClick={toggleComplete} className="btn-primary" disabled={saving}>
+                            {lesson.is_completed ? <CheckCircle2 className="size-4" /> : <Circle className="size-4" />}
+                            {lesson.is_completed ? 'Completed' : t('Mark complete')}
+                        </button>
+                    )}
                 </div>
             </div>
 
             <div className="grid gap-6 lg:grid-cols-[1fr_260px]">
                 <article className="card p-6 sm:p-8">
-                    <Badge tone="brand">{pick(lesson.chapter, 'title')}</Badge>
+                    <div className="flex flex-wrap gap-2">
+                        <Badge tone={isReference ? 'violet' : 'brand'}>
+                            {isReference ? (locale === 'km' ? 'យោង' : 'Reference') : pick(lesson.chapter, 'title')}
+                        </Badge>
+                        {isReference && lesson.chapter?.subject && <Badge tone="slate">{pick(lesson.chapter.subject, 'name')}</Badge>}
+                    </div>
                     <h1 className="mt-4 text-3xl font-bold">{pick(lesson, 'title')}</h1>
                     <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">{pick(lesson, 'summary')}</p>
                     <div className="mt-4 flex flex-wrap gap-3 text-xs text-slate-500 dark:text-slate-400">
@@ -270,7 +308,9 @@ export function LessonReader() {
                     <RichContent content={content} />
                     {lesson.important_notes && (
                         <div className="mt-8 rounded-xl border border-amber-200 bg-amber-50 p-4 dark:border-amber-900 dark:bg-amber-950/40">
-                            <p className="text-xs font-bold uppercase tracking-wide text-amber-800 dark:text-amber-200">Important notes</p>
+                            <p className="text-xs font-bold uppercase tracking-wide text-amber-800 dark:text-amber-200">
+                                {isReference ? (locale === 'km' ? 'ចំណុចសំខាន់សម្រាប់ប្រឡង' : 'Key facts / exam notes') : 'Important notes'}
+                            </p>
                             <p className="mt-2 whitespace-pre-line text-sm text-amber-900 dark:text-amber-100">{lesson.important_notes}</p>
                         </div>
                     )}
@@ -296,18 +336,37 @@ export function LessonReader() {
 
                 <aside className="space-y-4">
                     <div className="card p-5">
-                        <h2 className="text-sm font-semibold">Practice this lesson</h2>
-                        <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">{lesson.exercises?.length || 0} questions available</p>
-                        <Link to={`/app/exercises?lesson_id=${lesson.id}`} className="btn-primary mt-4 w-full">
-                            Start practising
+                        <h2 className="text-sm font-semibold">{isReference ? 'Practice this subject' : 'Practice this lesson'}</h2>
+                        <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                            {isReference
+                                ? 'Apply what you revised in subject exercises.'
+                                : `${lesson.exercises?.length || 0} questions available`}
+                        </p>
+                        <Link
+                            to={isReference
+                                ? `/app/exercises?subject_id=${lesson.chapter?.subject?.id}`
+                                : `/app/exercises?lesson_id=${lesson.id}`}
+                            className="btn-primary mt-4 w-full"
+                        >
+                            {t('Practice Exercises')}
                         </Link>
                     </div>
                     <div className="card p-5">
-                        <h2 className="text-sm font-semibold">In this lesson</h2>
+                        <h2 className="text-sm font-semibold">{isReference ? 'In this reference' : 'In this lesson'}</h2>
                         <ul className="mt-3 space-y-2 text-sm text-slate-600 dark:text-slate-300">
-                            <li className="flex items-center gap-2"><BookOpen className="size-4 text-brand-600" /> Bilingual explanation</li>
-                            <li className="flex items-center gap-2"><CheckCircle2 className="size-4 text-brand-600" /> Key notes</li>
-                            <li className="flex items-center gap-2"><FileText className="size-4 text-brand-600" /> Practice questions</li>
+                            {isReference ? (
+                                <>
+                                    <li className="flex items-center gap-2"><BookOpen className="size-4 text-brand-600" /> Definitions & concepts</li>
+                                    <li className="flex items-center gap-2"><Sparkles className="size-4 text-brand-600" /> Formulas & summaries</li>
+                                    <li className="flex items-center gap-2"><FileText className="size-4 text-brand-600" /> Dates, facts & exam notes</li>
+                                </>
+                            ) : (
+                                <>
+                                    <li className="flex items-center gap-2"><BookOpen className="size-4 text-brand-600" /> Bilingual explanation</li>
+                                    <li className="flex items-center gap-2"><CheckCircle2 className="size-4 text-brand-600" /> Key notes</li>
+                                    <li className="flex items-center gap-2"><FileText className="size-4 text-brand-600" /> Practice questions</li>
+                                </>
+                            )}
                         </ul>
                     </div>
                 </aside>

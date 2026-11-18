@@ -9,10 +9,12 @@ import {
     Sparkles,
     TrendingUp,
 } from 'lucide-react';
+import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Badge } from '../../components/ui';
+import { Badge, LoadingState } from '../../components/ui';
 import { useAuth } from '../../contexts/AuthContext';
 import { useLocale } from '../../contexts/LocaleContext';
+import { api, unwrap } from '../../lib/api';
 
 const features = [
     {
@@ -41,27 +43,29 @@ const features = [
     },
 ];
 
-const tracks = [
-    {
-        title: 'Science',
-        khmer: 'វិទ្យាសាស្ត្រ',
-        description: 'Mathematics, Physics, Chemistry and Biology.',
-        subjects: ['Mathematics', 'Physics', 'Chemistry', 'Biology'],
-        gradient: 'from-brand-600 to-teal-500',
-    },
-    {
-        title: 'Social Science',
-        khmer: 'វិទ្យាសាស្ត្រសង្គម',
-        description: 'Khmer Literature, History, Geography and Moral & Civic Education.',
-        subjects: ['Khmer Literature', 'History', 'Geography', 'Moral & Civic Education'],
-        gradient: 'from-amber-500 to-rose-500',
-    },
-];
-
 export default function Home() {
     const { isAuthenticated, isAdmin } = useAuth();
-    const { t } = useLocale();
+    const { locale, pick, t } = useLocale();
+    const [tracks, setTracks] = useState([]);
+    const [subjects, setSubjects] = useState([]);
+    const [loading, setLoading] = useState(true);
     const dashboardLink = isAuthenticated ? (isAdmin ? '/admin' : '/app') : '/register';
+
+    useEffect(() => {
+        Promise.all([
+            api.get('/tracks'),
+            api.get('/subjects', { params: { per_page: 50 } }),
+        ])
+            .then(([trackResponse, subjectResponse]) => {
+                setTracks(unwrap(trackResponse) || []);
+                setSubjects(unwrap(subjectResponse) || []);
+            })
+            .catch(() => {
+                setTracks([]);
+                setSubjects([]);
+            })
+            .finally(() => setLoading(false));
+    }, []);
 
     return (
         <>
@@ -139,29 +143,42 @@ export default function Home() {
                         Administrators can adjust tracks and subjects at any time. Demo content is provided for practice and is not official exam material.
                     </p>
                 </div>
-                <div className="mt-10 grid gap-6 md:grid-cols-2">
-                    {tracks.map((track) => (
-                        <div key={track.title} className="card overflow-hidden">
-                            <div className={`bg-gradient-to-r p-5 text-white ${track.gradient}`}>
-                                <h3 className="text-xl font-bold">{track.title}</h3>
-                                <p className="text-sm text-white/85">{track.khmer}</p>
-                            </div>
-                            <div className="p-5">
-                                <p className="text-sm text-slate-600 dark:text-slate-300">{track.description}</p>
-                                <div className="mt-4 flex flex-wrap gap-2">
-                                    {track.subjects.map((subject) => (
-                                        <span key={subject} className="chip bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300">
-                                            {subject}
-                                        </span>
-                                    ))}
+                {loading ? (
+                    <LoadingState />
+                ) : (
+                    <div className="mt-10 grid gap-6 md:grid-cols-2">
+                        {tracks.map((track) => {
+                            const trackSubjects = subjects.filter((subject) => subject.study_track?.slug === track.slug);
+                            const gradient = track.slug === 'social-science'
+                                ? 'from-amber-500 to-rose-500'
+                                : 'from-brand-600 to-teal-500';
+
+                            return (
+                                <div key={track.id} className="card overflow-hidden">
+                                    <div className={`bg-gradient-to-r p-5 text-white ${gradient}`}>
+                                        <h3 className="text-xl font-bold">{pick(track, 'name')}</h3>
+                                        <p className="text-sm text-white/85">{track.name_km}</p>
+                                    </div>
+                                    <div className="p-5">
+                                        <p className="text-sm text-slate-600 dark:text-slate-300">
+                                            {pick(track, 'description') || 'Grade 12 subjects and practice activities.'}
+                                        </p>
+                                        <div className="mt-4 flex flex-wrap gap-2">
+                                            {trackSubjects.map((subject) => (
+                                                <span key={subject.id} className="chip bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300">
+                                                    {pick(subject, 'name')}
+                                                </span>
+                                            ))}
+                                        </div>
+                                        <Link to={`/subjects?track_slug=${track.slug}`} className="mt-5 inline-flex items-center gap-1.5 text-sm font-semibold text-brand-600 hover:underline">
+                                            {locale === 'km' ? 'មើលមុខវិជ្ជា' : 'Explore subjects'} <ArrowRight className="size-4" />
+                                        </Link>
+                                    </div>
                                 </div>
-                                <Link to="/subjects" className="mt-5 inline-flex items-center gap-1.5 text-sm font-semibold text-brand-600 hover:underline">
-                                    Explore subjects <ArrowRight className="size-4" />
-                                </Link>
-                            </div>
-                        </div>
-                    ))}
-                </div>
+                            );
+                        })}
+                    </div>
+                )}
             </section>
 
             <section className="border-y border-slate-200 bg-white py-16 dark:border-slate-800 dark:bg-slate-900">

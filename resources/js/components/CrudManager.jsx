@@ -66,6 +66,10 @@ export function CrudManager({
     transformPayload,
     onSaved,
     modalSize = 'md',
+    fixedParams = {},
+    editable = true,
+    deletable = true,
+    rowActions,
 }) {
     const toast = useToast();
     const { pick, t } = useLocale();
@@ -83,13 +87,15 @@ export function CrudManager({
     const [saving, setSaving] = useState(false);
     const [options, setOptions] = useState({});
     const [reloadKey, setReloadKey] = useState(0);
+    const fixedParamsKey = JSON.stringify(fixedParams);
+    const showActions = editable || deletable || Boolean(rowActions);
 
     const load = useCallback(async () => {
         setLoading(true);
         setError('');
 
         try {
-            const params = { page, per_page: 15 };
+            const params = { page, per_page: 15, ...JSON.parse(fixedParamsKey) };
 
             if (search) {
                 params.search = search;
@@ -109,7 +115,7 @@ export function CrudManager({
         } finally {
             setLoading(false);
         }
-    }, [endpoint, page, search, filterValues, reloadKey]);
+    }, [endpoint, page, search, filterValues, reloadKey, fixedParamsKey]);
 
     useEffect(() => {
         load();
@@ -286,7 +292,7 @@ export function CrudManager({
                                             {column.label}
                                         </th>
                                     ))}
-                                    <th className="px-4 py-3 text-right font-semibold">Actions</th>
+                                    {showActions && <th className="px-4 py-3 text-right font-semibold">Actions</th>}
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
@@ -297,18 +303,23 @@ export function CrudManager({
                                                 {renderCell(row, column, pick)}
                                             </td>
                                         ))}
-                                        <td className="px-4 py-3 text-right">
-                                            <div className="inline-flex items-center gap-1">
-                                                <button type="button" onClick={() => openEdit(row)} className="rounded-lg p-2 text-slate-500 hover:bg-brand-50 hover:text-brand-700 dark:hover:bg-brand-900/40" aria-label="Edit">
-                                                    <Pencil className="size-4" />
-                                                </button>
-                                                {!row.protected && (
-                                                    <button type="button" onClick={() => remove(row)} className="rounded-lg p-2 text-slate-500 hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-950/40" aria-label="Delete">
-                                                        <Trash2 className="size-4" />
-                                                    </button>
-                                                )}
-                                            </div>
-                                        </td>
+                                        {showActions && (
+                                            <td className="px-4 py-3 text-right">
+                                                <div className="inline-flex items-center gap-1">
+                                                    {rowActions?.(row)}
+                                                    {editable && (
+                                                        <button type="button" onClick={() => openEdit(row)} className="rounded-lg p-2 text-slate-500 hover:bg-brand-50 hover:text-brand-700 dark:hover:bg-brand-900/40" aria-label="Edit">
+                                                            <Pencil className="size-4" />
+                                                        </button>
+                                                    )}
+                                                    {deletable && !row.protected && (
+                                                        <button type="button" onClick={() => remove(row)} className="rounded-lg p-2 text-slate-500 hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-950/40" aria-label="Delete">
+                                                            <Trash2 className="size-4" />
+                                                        </button>
+                                                    )}
+                                                </div>
+                                            </td>
+                                        )}
                                     </tr>
                                 ))}
                             </tbody>

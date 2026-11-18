@@ -13,41 +13,47 @@ class AuthAndRbacTest extends TestCase
     use CreatesStudyContent;
     use RefreshDatabase;
 
-    public function test_student_can_register_with_a_valid_study_track(): void
+    public function test_registration_creates_a_student_without_a_study_track(): void
     {
-        $track = $this->createTrack();
-
         $response = $this->postJson('/api/v1/register', [
             'name' => 'Sokha',
             'email' => 'sokha@example.test',
             'password' => 'password123',
             'password_confirmation' => 'password123',
-            'study_track_id' => $track->id,
         ]);
 
         $response->assertCreated()
             ->assertJsonPath('success', true)
             ->assertJsonPath('data.user.email', 'sokha@example.test')
             ->assertJsonPath('data.user.role', 'student')
-            ->assertJsonPath('data.user.study_track.id', $track->id)
+            ->assertJsonPath('data.user.study_track', null)
             ->assertJsonStructure(['success', 'data' => ['user', 'token']]);
 
         $this->assertDatabaseHas('users', [
             'email' => 'sokha@example.test',
             'role' => 'student',
-            'study_track_id' => $track->id,
+            'study_track_id' => null,
         ]);
     }
 
-    public function test_registration_rejects_an_invalid_track(): void
+    public function test_registration_ignores_a_submitted_study_track_id(): void
     {
+        $track = $this->createTrack();
+
         $this->postJson('/api/v1/register', [
             'name' => 'Sokha',
             'email' => 'sokha@example.test',
             'password' => 'password123',
             'password_confirmation' => 'password123',
-            'study_track_id' => 9999,
-        ])->assertUnprocessable()->assertJsonValidationErrors('study_track_id');
+            'study_track_id' => $track->id,
+        ])->assertCreated()
+            ->assertJsonPath('data.user.study_track', null);
+
+        $this->assertDatabaseHas('users', [
+            'email' => 'sokha@example.test',
+            'role' => 'student',
+            'study_track_id' => null,
+        ]);
     }
 
     public function test_user_can_login_and_logout_with_a_sanctum_token(): void
@@ -80,6 +86,24 @@ class AuthAndRbacTest extends TestCase
             ->assertJsonPath('success', true);
 
         $this->assertDatabaseCount('personal_access_tokens', 0);
+    }
+
+    public function test_login_with_remember_creates_a_long_lived_token(): void
+    {
+        $track = $this->createTrack();
+        $student = $this->createStudent($track);
+
+        $this->postJson('/api/v1/login', [
+            'email' => $student->email,
+            'password' => 'password',
+            'remember' => true,
+        ])->assertOk();
+
+        $token = $student->tokens()->latest('id')->first();
+
+        $this->assertNotNull($token);
+        $this->assertNotNull($token->expires_at);
+        $this->assertTrue($token->expires_at->greaterThan(now()->addDays(29)));
     }
 
     public function test_login_rejects_wrong_credentials(): void

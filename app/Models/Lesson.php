@@ -12,7 +12,7 @@ use Illuminate\Database\Eloquent\SoftDeletes;
 #[Fillable([
     'chapter_id', 'slug', 'title_en', 'title_km', 'summary_en', 'summary_km',
     'content_km', 'content_en', 'video_url', 'pdf_path', 'important_notes',
-    'sort_order', 'estimated_minutes', 'is_published',
+    'sort_order', 'estimated_minutes', 'is_published', 'is_reference',
 ])]
 class Lesson extends Model
 {
@@ -25,6 +25,7 @@ class Lesson extends Model
             'sort_order' => 'integer',
             'estimated_minutes' => 'integer',
             'is_published' => 'boolean',
+            'is_reference' => 'boolean',
         ];
     }
 

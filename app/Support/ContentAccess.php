@@ -13,9 +13,6 @@ class ContentAccess
             abort(404);
         }
 
-        if ($user && ! $user->isAdmin() && $user->study_track_id && $subject->study_track_id !== $user->study_track_id) {
-            abort(404);
-        }
     }
 
     public static function assertPublished(mixed $model): void

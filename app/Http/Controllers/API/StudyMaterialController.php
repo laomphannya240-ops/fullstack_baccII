@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Http\Resources\MaterialResource;
 use App\Models\StudyMaterial;
 use App\Support\ApiResponse;
+use App\Support\ContentAccess;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -38,10 +39,12 @@ class StudyMaterialController extends Controller
         return ApiResponse::success(MaterialResource::collection($materials), null, ApiResponse::pagination($materials));
     }
 
-    public function show(StudyMaterial $material): JsonResponse
+    public function show(Request $request, StudyMaterial $material): JsonResponse
     {
         abort_unless($material->is_published, 404);
+        $material->load(['subject', 'chapter']);
+        ContentAccess::assertSubjectAvailable($material->subject, $request->user());
 
-        return ApiResponse::success(new MaterialResource($material->load(['subject', 'chapter'])));
+        return ApiResponse::success(new MaterialResource($material));
     }
 }

@@ -25,9 +25,9 @@ class AuthController extends Controller
 {
     public function register(RegisterRequest $request): JsonResponse
     {
-        $user = User::create($request->validated());
+        $user = User::create(array_merge($request->validated(), ['role' => 'student']));
         $user->refresh();
-        $token = $user->createToken('studyhub-web')->plainTextToken;
+        $token = $user->createToken('studyhub-web', ['*'], now()->addDay())->plainTextToken;
 
         return ApiResponse::success([
             'user' => new UserResource($user->load('studyTrack')),
@@ -50,7 +50,8 @@ class AuthController extends Controller
             return ApiResponse::error('This account is inactive.', 403);
         }
 
-        $token = $user->createToken('studyhub-web')->plainTextToken;
+        $tokenLifetime = $request->boolean('remember') ? now()->addDays(30) : now()->addDay();
+        $token = $user->createToken('studyhub-web', ['*'], $tokenLifetime)->plainTextToken;
 
         return ApiResponse::success([
             'user' => new UserResource($user->load('studyTrack')),

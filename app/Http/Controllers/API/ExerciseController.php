@@ -7,6 +7,7 @@ use App\Http\Requests\SubmitExerciseRequest;
 use App\Http\Resources\ExerciseAttemptResource;
 use App\Http\Resources\ExerciseResource;
 use App\Models\Exercise;
+use App\Models\ExerciseAttempt;
 use App\Services\ActivityService;
 use App\Services\GradingService;
 use App\Support\ApiResponse;
@@ -28,9 +29,27 @@ class ExerciseController extends Controller
             'lesson_id' => ['nullable', 'integer'],
             'difficulty' => ['nullable', Rule::in(['easy', 'medium', 'hard'])],
             'type' => ['nullable', Rule::in(['mcq', 'true_false', 'short_answer', 'numerical'])],
+            'search' => ['nullable', 'string', 'max:100'],
+            'track_slug' => ['nullable', 'string', 'max:100'],
+            'status' => ['nullable', Rule::in(['completed', 'not_completed'])],
         ]);
 
+        $userId = $user?->id ?? 0;
+
         $exercises = Exercise::query()
+            ->select('exercises.*')
+            ->selectSub(
+                ExerciseAttempt::query()->selectRaw('COUNT(*)')->whereColumn('exercise_attempts.exercise_id', 'exercises.id')->where('user_id', $userId),
+                'attempts_count',
+            )
+            ->selectSub(
+                ExerciseAttempt::query()->selectRaw('COUNT(*)')->whereColumn('exercise_attempts.exercise_id', 'exercises.id')->where('user_id', $userId)->where('is_correct', true),
+                'correct_attempts',
+            )
+            ->selectSub(
+                ExerciseAttempt::query()->selectRaw('COALESCE(MAX(points_earned), 0)')->whereColumn('exercise_attempts.exercise_id', 'exercises.id')->where('user_id', $userId),
+                'best_points',
+            )
             ->with([
                 'subject:id,slug,name_en,name_km',
                 'chapter:id,title_en,title_km',
@@ -42,12 +61,19 @@ class ExerciseController extends Controller
             ->when($request->integer('lesson_id'), fn ($query, $id) => $query->where('lesson_id', $id))
             ->when($request->input('difficulty'), fn ($query, $value) => $query->where('difficulty', $value))
             ->when($request->input('type'), fn ($query, $value) => $query->where('type', $value))
-            ->when($user && ! $user->isAdmin(), function ($query) use ($user): void {
-                $query->where('is_published', true);
-                if ($user->study_track_id) {
-                    $query->whereHas('subject', fn ($subjectQuery) => $subjectQuery->where('study_track_id', $user->study_track_id));
-                }
+            ->when($request->string('search')->toString() !== '', function ($query) use ($request): void {
+                $term = $request->string('search')->toString();
+                $query->where(function ($builder) use ($term): void {
+                    $builder->where('question_km', 'like', "%{$term}%")
+                        ->orWhere('question_en', 'like', "%{$term}%");
+                });
             })
+            ->when($request->string('track_slug')->toString() !== '', function ($query) use ($request): void {
+                $query->whereHas('subject.studyTrack', fn ($trackQuery) => $trackQuery->where('slug', $request->string('track_slug')->toString()));
+            })
+            ->when($request->input('status') === 'completed', fn ($query) => $query->whereHas('attempts', fn ($attemptQuery) => $attemptQuery->where('user_id', $userId)))
+            ->when($request->input('status') === 'not_completed', fn ($query) => $query->whereDoesntHave('attempts', fn ($attemptQuery) => $attemptQuery->where('user_id', $userId)))
+            ->when($user && ! $user->isAdmin(), fn ($query) => $query->where('is_published', true))
             ->orderBy('sort_order')
             ->orderBy('id')
             ->paginate($request->integer('per_page', 15));
@@ -58,6 +84,7 @@ class ExerciseController extends Controller
 
         $exercises->setCollection($exercises->getCollection()->map(function (Exercise $exercise) use ($bookmarkedIds): Exercise {
             $exercise->bookmarked = $bookmarkedIds->contains($exercise->id);
+            $exercise->is_completed = (int) ($exercise->attempts_count ?? 0) > 0;
 
             return $exercise;
         }));

@@ -3,12 +3,14 @@
 namespace App\Services;
 
 use App\Models\Chapter;
+use App\Models\Exercise;
 use App\Models\ExerciseAttempt;
 use App\Models\Lesson;
 use App\Models\LessonProgress;
 use App\Models\MockExamAttempt;
 use App\Models\QuizAttempt;
 use App\Models\StudyActivity;
+use App\Models\StudyTrack;
 use App\Models\Subject;
 use App\Models\User;
 use Illuminate\Support\Collection;
@@ -20,20 +22,39 @@ class ProgressService
      */
     public function dashboard(User $user): array
     {
-        $subjectIds = $this->accessibleSubjectIds($user);
+        $subjectIds = $this->accessibleSubjectIds();
 
         $subjects = $subjectIds->isNotEmpty()
-            ? Subject::whereIn('id', $subjectIds)->get(['id', 'name_en', 'name_km', 'slug', 'color', 'icon'])
+            ? Subject::whereIn('id', $subjectIds)
+                ->with('studyTrack:id,slug,name_en,name_km')
+                ->withCount(['chapters', 'lessons', 'exercises'])
+                ->orderBy('sort_order')
+                ->get()
             : collect();
 
+        $tracks = StudyTrack::where('is_active', true)
+            ->withCount(['subjects' => fn ($query) => $query->where('is_active', true)])
+            ->orderBy('sort_order')
+            ->get();
+
         $lessonIds = $subjectIds->isNotEmpty()
-            ? Lesson::whereHas('chapter', fn ($query) => $query->whereIn('subject_id', $subjectIds))
+            ? Lesson::where('is_published', true)
+                ->whereHas('chapter', fn ($query) => $query->whereIn('subject_id', $subjectIds))
                 ->pluck('id')
+            : collect();
+
+        $exerciseIds = $subjectIds->isNotEmpty()
+            ? Exercise::where('is_published', true)->whereIn('subject_id', $subjectIds)->pluck('id')
             : collect();
 
         $completedLessonIds = LessonProgress::where('user_id', $user->id)
             ->where('is_completed', true)
             ->pluck('lesson_id');
+
+        $completedExerciseIds = ExerciseAttempt::where('user_id', $user->id)
+            ->whereIn('exercise_id', $exerciseIds)
+            ->distinct()
+            ->pluck('exercise_id');
 
         $quizAttempts = QuizAttempt::where('user_id', $user->id)
             ->where('status', 'completed')
@@ -50,7 +71,6 @@ class ProgressService
 
         $recommendedLessons = $lessonIds->isNotEmpty()
             ? Lesson::whereIn('id', $lessonIds)
-                ->where('is_published', true)
                 ->whereNotIn('id', $completedLessonIds)
                 ->with(['chapter.subject:id,name_en,name_km,slug'])
                 ->orderBy('sort_order')
@@ -67,24 +87,68 @@ class ProgressService
             ->pluck('lesson')
             ->filter();
 
+        $recentExercises = ExerciseAttempt::where('user_id', $user->id)
+            ->with(['exercise.subject:id,name_en,name_km,slug', 'exercise.options'])
+            ->latest()
+            ->limit(5)
+            ->get();
+
+        $quickPractice = $exerciseIds->isNotEmpty()
+            ? Exercise::whereIn('id', $exerciseIds)
+                ->whereNotIn('id', $completedExerciseIds)
+                ->with(['subject:id,name_en,name_km,slug', 'options'])
+                ->orderBy('sort_order')
+                ->limit(4)
+                ->get()
+            : collect();
+
+        $referenceIds = StudyActivity::where('user_id', $user->id)
+            ->where('type', 'reference_viewed')
+            ->latest('occurred_at')
+            ->limit(4)
+            ->pluck('reference_id')
+            ->filter();
+
+        $recentReferences = $referenceIds->isNotEmpty()
+            ? Lesson::whereIn('id', $referenceIds)
+                ->with(['chapter.subject:id,name_en,name_km,slug'])
+                ->get()
+                ->sortBy(fn (Lesson $lesson) => $referenceIds->search($lesson->id))
+                ->values()
+            : collect();
+
+        $completedLessonsCount = $completedLessonIds->intersect($lessonIds)->count();
+        $completedExercisesCount = $completedExerciseIds->count();
+        $lessonCompletion = $lessonIds->count() > 0 ? (int) round($completedLessonsCount / $lessonIds->count() * 100) : 0;
+        $exerciseCompletion = $exerciseIds->count() > 0 ? (int) round($completedExercisesCount / $exerciseIds->count() * 100) : 0;
+
         return [
             'track' => $user->studyTrack()->first(),
+            'tracks' => $tracks,
+            'subjects' => $subjects,
             'stats' => [
                 'total_subjects' => $subjects->count(),
                 'total_lessons' => $lessonIds->count(),
-                'completed_lessons' => $completedLessonIds->intersect($lessonIds)->count(),
-                'completed_exercises' => ExerciseAttempt::where('user_id', $user->id)->distinct('exercise_id')->count('exercise_id'),
+                'total_exercises' => $exerciseIds->count(),
+                'completed_lessons' => $completedLessonsCount,
+                'completed_exercises' => $completedExercisesCount,
+                'lesson_completion_percentage' => $lessonCompletion,
+                'exercise_completion_percentage' => $exerciseCompletion,
                 'quiz_attempts' => $quizAttempts->count(),
                 'exam_attempts' => $examAttempts->count(),
                 'quiz_average' => $this->averagePercentage($quizAttempts),
                 'exam_average' => $this->averagePercentage($examAttempts),
             ],
+            'overall_progress' => (int) round(($lessonCompletion + $exerciseCompletion) / 2),
             'activity_chart' => $this->activityChart($user),
             'recent_activity' => StudyActivity::where('user_id', $user->id)
                 ->with('subject:id,name_en,name_km')
                 ->latest('occurred_at')
                 ->limit(6)
                 ->get(),
+            'recent_exercises' => $recentExercises,
+            'recent_references' => $recentReferences,
+            'quick_practice' => $quickPractice,
             'recommended_lessons' => $recommendedLessons->values(),
             'continue_learning' => $continueLessons->values(),
             'subject_performance' => $subjectPerformance->values(),
@@ -98,7 +162,7 @@ class ProgressService
      */
     public function subjectProgress(User $user): array
     {
-        $subjectIds = $this->accessibleSubjectIds($user);
+        $subjectIds = $this->accessibleSubjectIds();
 
         $subjects = $subjectIds->isNotEmpty()
             ? Subject::whereIn('id', $subjectIds)->with(['chapters' => fn ($query) => $query->with('lessons:id,chapter_id')->orderBy('sort_order')])->get()
@@ -134,13 +198,9 @@ class ProgressService
         ];
     }
 
-    private function accessibleSubjectIds(User $user): Collection
+    private function accessibleSubjectIds(): Collection
     {
-        if (! $user->study_track_id) {
-            return Subject::pluck('id');
-        }
-
-        return Subject::where('study_track_id', $user->study_track_id)->pluck('id');
+        return Subject::where('is_active', true)->pluck('id');
     }
 
     /**

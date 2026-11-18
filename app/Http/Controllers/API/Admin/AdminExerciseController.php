@@ -29,7 +29,8 @@ class AdminExerciseController extends Controller
     public function store(StoreExerciseRequest $request): JsonResponse
     {
         $exercise = DB::transaction(function () use ($request): Exercise {
-            $data = $request->safe()->except(['options']);
+            $data = $request->safe()->except(['options', 'image']);
+            $data['image_path'] = $this->storeImage($request);
             $exercise = Exercise::create($data);
             $this->syncOptions($exercise, $request->input('options', []));
 
@@ -47,7 +48,14 @@ class AdminExerciseController extends Controller
     public function update(UpdateExerciseRequest $request, Exercise $exercise): JsonResponse
     {
         DB::transaction(function () use ($request, $exercise): void {
-            $exercise->update($request->safe()->except(['options']));
+            $data = $request->safe()->except(['options', 'image']);
+            $imagePath = $this->storeImage($request);
+
+            if ($imagePath !== null) {
+                $data['image_path'] = $imagePath;
+            }
+
+            $exercise->update($data);
 
             if ($request->has('options')) {
                 $this->syncOptions($exercise, $request->input('options') ?? []);
@@ -62,6 +70,15 @@ class AdminExerciseController extends Controller
         $exercise->delete();
 
         return ApiResponse::success(null, 'Exercise deleted.');
+    }
+
+    private function storeImage(Request $request): ?string
+    {
+        if (! $request->hasFile('image')) {
+            return null;
+        }
+
+        return $request->file('image')->store('exercises', 'public');
     }
 
     /**

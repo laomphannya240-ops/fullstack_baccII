@@ -31,6 +31,7 @@ class UpdateExerciseRequest extends FormRequest
             'type' => ['sometimes', 'required', Rule::in(['mcq', 'true_false', 'short_answer', 'numerical'])],
             'question_km' => ['sometimes', 'required', 'string'],
             'question_en' => ['nullable', 'string'],
+            'image' => ['nullable', 'file', 'image', 'max:5120'],
             'explanation_km' => ['nullable', 'string'],
             'explanation_en' => ['nullable', 'string'],
             'correct_answer' => ['nullable', 'string', 'max:255'],

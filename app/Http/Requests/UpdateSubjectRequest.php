@@ -2,6 +2,7 @@
 
 namespace App\Http\Requests;
 
+use Illuminate\Contracts\Database\Query\Builder;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
@@ -18,10 +19,17 @@ class UpdateSubjectRequest extends FormRequest
     public function rules(): array
     {
         $subject = $this->route('subject');
+        $trackId = $this->integer('study_track_id') ?: $subject->study_track_id;
 
         return [
             'study_track_id' => ['sometimes', 'required', 'integer', 'exists:study_tracks,id'],
-            'slug' => ['sometimes', 'required', 'string', 'max:100', Rule::unique('subjects', 'slug')->ignore($subject)],
+            'slug' => [
+                'sometimes',
+                'required',
+                'string',
+                'max:100',
+                Rule::unique('subjects', 'slug')->where(fn (Builder $query) => $query->where('study_track_id', $trackId))->ignore($subject),
+            ],
             'name_en' => ['sometimes', 'required', 'string', 'max:150'],
             'name_km' => ['sometimes', 'required', 'string', 'max:150'],
             'description_en' => ['nullable', 'string'],

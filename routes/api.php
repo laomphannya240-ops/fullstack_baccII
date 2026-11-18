@@ -3,6 +3,7 @@
 use App\Http\Controllers\API\Admin\AdminAnnouncementController;
 use App\Http\Controllers\API\Admin\AdminChapterController;
 use App\Http\Controllers\API\Admin\AdminDashboardController;
+use App\Http\Controllers\API\Admin\AdminExerciseAttemptController;
 use App\Http\Controllers\API\Admin\AdminExerciseController;
 use App\Http\Controllers\API\Admin\AdminLessonController;
 use App\Http\Controllers\API\Admin\AdminMaterialController;
@@ -123,6 +124,9 @@ Route::prefix('v1')->group(function (): void {
             Route::get('/exercises/{exercise}', [AdminExerciseController::class, 'show']);
             Route::put('/exercises/{exercise}', [AdminExerciseController::class, 'update']);
             Route::delete('/exercises/{exercise}', [AdminExerciseController::class, 'destroy']);
+
+            Route::get('/exercise-results', [AdminExerciseAttemptController::class, 'index']);
+            Route::get('/exercise-results/{exerciseAttempt}', [AdminExerciseAttemptController::class, 'show']);
 
             Route::get('/quizzes', [AdminQuizController::class, 'index']);
             Route::post('/quizzes', [AdminQuizController::class, 'store']);

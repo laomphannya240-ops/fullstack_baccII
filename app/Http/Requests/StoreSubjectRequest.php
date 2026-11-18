@@ -2,7 +2,9 @@
 
 namespace App\Http\Requests;
 
+use Illuminate\Contracts\Database\Query\Builder;
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Validation\Rule;
 
 class StoreSubjectRequest extends FormRequest
 {
@@ -18,7 +20,12 @@ class StoreSubjectRequest extends FormRequest
     {
         return [
             'study_track_id' => ['required', 'integer', 'exists:study_tracks,id'],
-            'slug' => ['required', 'string', 'max:100', 'unique:subjects,slug'],
+            'slug' => [
+                'required',
+                'string',
+                'max:100',
+                Rule::unique('subjects', 'slug')->where(fn (Builder $query) => $query->where('study_track_id', $this->integer('study_track_id'))),
+            ],
             'name_en' => ['required', 'string', 'max:150'],
             'name_km' => ['required', 'string', 'max:150'],
             'description_en' => ['nullable', 'string'],
