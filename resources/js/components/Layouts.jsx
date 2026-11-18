@@ -25,6 +25,7 @@ import { Link, NavLink, Outlet, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { useLocale } from '../contexts/LocaleContext';
 import { useTheme } from '../contexts/ThemeContext';
+import WelcomePopup from './WelcomePopup';
 
 function Logo({ compact = false }) {
     return (
@@ -136,7 +137,7 @@ function UserMenu() {
 }
 
 export function PublicLayout() {
-    const { isAuthenticated, isAdmin } = useAuth();
+    const { initializing, isAuthenticated, isAdmin } = useAuth();
     const { t } = useLocale();
     const [mobileOpen, setMobileOpen] = useState(false);
 
@@ -196,6 +197,7 @@ export function PublicLayout() {
                     <p className="text-xs">Demo content is for practice only and is not official exam material.</p>
                 </div>
             </footer>
+            {!initializing && !isAuthenticated && <WelcomePopup />}
         </div>
     );
 }
@@ -211,6 +213,7 @@ function DashboardShell({ role }) {
         { to: '/app/social-science', icon: Landmark, label: 'Social Science' },
         { to: '/app/exercises', icon: NotebookPen, label: 'Practice Exercises' },
         { to: '/app/reference', icon: BookOpen, label: 'Formula / Theory' },
+        { to: '/app/materials', icon: FileText, label: 'Materials' },
         { to: '/app/progress', icon: TrendingUp, label: 'My Progress' },
         { to: '/app/profile', icon: UserRound, label: 'Profile' },
     ];

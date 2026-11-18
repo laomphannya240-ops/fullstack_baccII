@@ -1,6 +1,7 @@
-import { ArrowLeft, BookOpen, Download, FileText, Megaphone, Search } from 'lucide-react';
+import { ArrowLeft, BookOpen, FileText, Megaphone, Search, X } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { Link, useParams, useSearchParams } from 'react-router-dom';
+import MaterialViewer, { MaterialCard } from '../../components/MaterialViewer';
 import { Badge, EmptyState, ErrorState, LoadingState } from '../../components/ui';
 import { useLocale } from '../../contexts/LocaleContext';
 import { api, getErrorMessage, unwrap, unwrapMeta } from '../../lib/api';
@@ -187,46 +188,148 @@ export function SubjectDetail() {
 }
 
 export function Materials() {
-    const { pick, t, formatDate } = useLocale();
+    const { pick, t } = useLocale();
     const [search, setSearch] = useState('');
-    const { items, loading, error } = usePublicList('/materials', { search, per_page: 30 });
+    const [trackSlug, setTrackSlug] = useState('');
+    const [subjectId, setSubjectId] = useState('');
+    const [chapterId, setChapterId] = useState('');
+    const [chapters, setChapters] = useState([]);
+    const [viewerMaterial, setViewerMaterial] = useState(null);
+
+    const { items: tracks } = usePublicList('/tracks', { per_page: 50 });
+    const { items: subjects } = usePublicList('/subjects', {
+        per_page: 100,
+        track_slug: trackSlug || undefined,
+    });
+    const { items, loading, error } = usePublicList('/materials', {
+        search,
+        track_slug: trackSlug || undefined,
+        subject_id: subjectId || undefined,
+        chapter_id: chapterId || undefined,
+        per_page: 30,
+    });
+
+    useEffect(() => {
+        setSubjectId('');
+        setChapterId('');
+    }, [trackSlug]);
+
+    useEffect(() => {
+        setChapterId('');
+
+        if (!subjectId) {
+            setChapters([]);
+            return undefined;
+        }
+
+        let active = true;
+
+        api.get(`/subjects/${subjectId}`)
+            .then((response) => {
+                if (active) {
+                    setChapters(unwrap(response)?.chapters || []);
+                }
+            })
+            .catch(() => {
+                if (active) {
+                    setChapters([]);
+                }
+            });
+
+        return () => {
+            active = false;
+        };
+    }, [subjectId]);
+
+    const hasFilters = Boolean(search || trackSlug || subjectId || chapterId);
+    const clearFilters = () => {
+        setSearch('');
+        setTrackSlug('');
+        setSubjectId('');
+        setChapterId('');
+    };
 
     return (
         <div className="mx-auto max-w-6xl px-4 py-12 sm:px-6 lg:px-8">
             <div className="text-center">
                 <Badge tone="sky"><FileText className="size-3.5" /> {t('Materials')}</Badge>
-                <h1 className="mt-4 text-3xl font-bold">Study materials</h1>
-                <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">Notes, formula sheets and revision guides shared by your school.</p>
+                <h1 className="mt-4 text-3xl font-bold">{t('Study materials')}</h1>
+                <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">
+                    {t('Notes, formula sheets and revision guides shared by your school.')}
+                </p>
             </div>
-            <div className="relative mx-auto mt-8 max-w-md">
-                <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-slate-400" />
-                <input type="search" value={search} onChange={(event) => setSearch(event.target.value)} placeholder={`${t('Search')} materials...`} className="input-field pl-9" />
+
+            <div className="card mt-8 p-4 sm:p-5">
+                <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                    <label className="block sm:col-span-2 lg:col-span-4">
+                        <span className="mb-1.5 block text-xs font-semibold text-slate-600 dark:text-slate-300">{t('Search')}</span>
+                        <div className="relative">
+                            <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-slate-400" />
+                            <input
+                                type="search"
+                                value={search}
+                                onChange={(event) => setSearch(event.target.value)}
+                                placeholder={`${t('Search')} ${t('Materials').toLowerCase()}...`}
+                                className="input-field pl-9"
+                            />
+                        </div>
+                    </label>
+                    <label className="block">
+                        <span className="mb-1.5 block text-xs font-semibold text-slate-600 dark:text-slate-300">{t('Track')}</span>
+                        <select value={trackSlug} onChange={(event) => setTrackSlug(event.target.value)} className="input-field">
+                            <option value="">{t('All tracks')}</option>
+                            {tracks.map((track) => (
+                                <option key={track.id} value={track.slug}>{pick(track, 'name')}</option>
+                            ))}
+                        </select>
+                    </label>
+                    <label className="block">
+                        <span className="mb-1.5 block text-xs font-semibold text-slate-600 dark:text-slate-300">{t('Subject')}</span>
+                        <select value={subjectId} onChange={(event) => setSubjectId(event.target.value)} className="input-field">
+                            <option value="">{t('All subjects')}</option>
+                            {subjects.map((subject) => (
+                                <option key={subject.id} value={subject.id}>{pick(subject, 'name')}</option>
+                            ))}
+                        </select>
+                    </label>
+                    <label className="block">
+                        <span className="mb-1.5 block text-xs font-semibold text-slate-600 dark:text-slate-300">{t('Chapter')}</span>
+                        <select value={chapterId} onChange={(event) => setChapterId(event.target.value)} className="input-field" disabled={!subjectId}>
+                            <option value="">{t('All chapters')}</option>
+                            {chapters.map((chapter) => (
+                                <option key={chapter.id} value={chapter.id}>{pick(chapter, 'title')}</option>
+                            ))}
+                        </select>
+                    </label>
+                    {hasFilters && (
+                        <button type="button" onClick={clearFilters} className="btn-secondary self-end justify-center">
+                            <X className="size-4" /> {t('Clear filters')}
+                        </button>
+                    )}
+                </div>
             </div>
-            <div className="mt-9">
+
+            <div className="mt-8">
                 {loading ? (
                     <LoadingState />
                 ) : error ? (
                     <ErrorState message={error} />
                 ) : items.length === 0 ? (
-                    <EmptyState title={t('No results found')} />
+                    <EmptyState title={t('No results found')} description={hasFilters ? t('Clear filters') : undefined} />
                 ) : (
                     <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
                         {items.map((material) => (
-                            <div key={material.id} className="card flex flex-col p-5">
-                                <Badge tone={material.file_type === 'video' ? 'red' : 'sky'}>{material.file_type || 'pdf'}</Badge>
-                                <h2 className="mt-3 font-semibold">{pick(material, 'title')}</h2>
-                                <p className="mt-1 line-clamp-2 flex-1 text-sm text-slate-500 dark:text-slate-400">{material.description}</p>
-                                <p className="mt-3 text-xs text-slate-400">{formatDate(material.created_at)}</p>
-                                {material.file_url && (
-                                    <a href={material.file_url} target="_blank" rel="noreferrer" className="btn-secondary mt-4">
-                                        <Download className="size-4" /> {t('Download')}
-                                    </a>
-                                )}
-                            </div>
+                            <MaterialCard key={material.id} material={material} onOpen={setViewerMaterial} />
                         ))}
                     </div>
                 )}
             </div>
+
+            <MaterialViewer
+                material={viewerMaterial}
+                open={Boolean(viewerMaterial)}
+                onClose={() => setViewerMaterial(null)}
+            />
         </div>
     );
 }

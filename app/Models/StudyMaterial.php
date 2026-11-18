@@ -5,11 +5,12 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\MorphMany;
 
 #[Fillable([
     'subject_id', 'chapter_id', 'title_en', 'title_km', 'description',
-    'file_path', 'file_type', 'file_size', 'is_published',
+    'file_path', 'file_name', 'file_type', 'file_size', 'is_published',
 ])]
 class StudyMaterial extends Model
 {
@@ -31,6 +32,11 @@ class StudyMaterial extends Model
     public function chapter(): BelongsTo
     {
         return $this->belongsTo(Chapter::class);
+    }
+
+    public function files(): HasMany
+    {
+        return $this->hasMany(StudyMaterialFile::class)->orderBy('sort_order');
     }
 
     public function bookmarks(): MorphMany

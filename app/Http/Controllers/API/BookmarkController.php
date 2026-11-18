@@ -20,13 +20,20 @@ class BookmarkController extends Controller
     public function index(Request $request): JsonResponse
     {
         $user = $request->user();
-        $bookmarks = $user->bookmarks()->with('bookmarkable')->latest()->paginate($request->integer('per_page', 20));
+        $bookmarks = $user->bookmarks()
+            ->with('bookmarkable')
+            ->latest()
+            ->paginate($request->integer('per_page', 20));
 
         $items = $bookmarks->getCollection()->map(function ($bookmark) {
             $item = $bookmark->bookmarkable;
 
             if (! $item) {
                 return null;
+            }
+
+            if ($item instanceof StudyMaterial) {
+                $item->loadMissing(['subject.studyTrack', 'chapter', 'files']);
             }
 
             $resource = match (true) {

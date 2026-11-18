@@ -12,16 +12,31 @@ use Illuminate\Http\Request;
 
 class StudyMaterialController extends Controller
 {
+    private const MATERIAL_RELATIONS = [
+        'subject:id,study_track_id,slug,name_en,name_km,is_active',
+        'subject.studyTrack:id,slug,name_en,name_km',
+        'chapter:id,subject_id,slug,title_en,title_km',
+        'files',
+    ];
+
     public function index(Request $request): JsonResponse
     {
         $materials = StudyMaterial::query()
-            ->with(['subject:id,name_en,name_km', 'chapter:id,title_en,title_km'])
+            ->with(self::MATERIAL_RELATIONS)
             ->where('is_published', true)
             ->when($request->integer('subject_id'), fn ($query, $id) => $query->where('subject_id', $id))
-            ->when($request->user()?->study_track_id, function ($query) use ($request): void {
-                if (! $request->user()->isAdmin()) {
-                    $query->whereHas('subject', fn ($subjectQuery) => $subjectQuery->where('study_track_id', $request->user()->study_track_id));
-                }
+            ->when($request->integer('chapter_id'), fn ($query, $id) => $query->where('chapter_id', $id))
+            ->when($request->integer('track_id'), fn ($query, $id) => $query->whereHas('subject', fn ($subjectQuery) => $subjectQuery->where('study_track_id', $id)))
+            ->when($request->string('track_slug')->toString(), fn ($query, $slug) => $query->whereHas('subject.studyTrack', fn ($trackQuery) => $trackQuery->where('slug', $slug)))
+            ->when($request->string('search')->toString() !== '', function ($query) use ($request): void {
+                $term = '%'.$request->string('search')->toString().'%';
+                $query->where(function ($builder) use ($term): void {
+                    $builder->where('title_en', 'like', $term)
+                        ->orWhere('title_km', 'like', $term)
+                        ->orWhere('description', 'like', $term)
+                        ->orWhere('file_name', 'like', $term)
+                        ->orWhereHas('files', fn ($fileQuery) => $fileQuery->where('original_name', 'like', $term));
+                });
             })
             ->latest()
             ->paginate($request->integer('per_page', 15));
@@ -42,7 +57,7 @@ class StudyMaterialController extends Controller
     public function show(Request $request, StudyMaterial $material): JsonResponse
     {
         abort_unless($material->is_published, 404);
-        $material->load(['subject', 'chapter']);
+        $material->load(self::MATERIAL_RELATIONS);
         ContentAccess::assertSubjectAvailable($material->subject, $request->user());
 
         return ApiResponse::success(new MaterialResource($material));

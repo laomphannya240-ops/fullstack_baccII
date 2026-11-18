@@ -2,10 +2,14 @@
 
 namespace App\Http\Requests;
 
+use App\Http\Requests\Concerns\ValidatesMaterialPayload;
+use Illuminate\Contracts\Validation\Validator;
 use Illuminate\Foundation\Http\FormRequest;
 
 class StoreStudyMaterialRequest extends FormRequest
 {
+    use ValidatesMaterialPayload;
+
     public function authorize(): bool
     {
         return $this->user()?->can('access-admin') ?? false;
@@ -17,13 +21,21 @@ class StoreStudyMaterialRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'subject_id' => ['nullable', 'integer', 'exists:subjects,id'],
-            'chapter_id' => ['nullable', 'integer', 'exists:chapters,id'],
+            'subject_id' => ['required', 'integer', 'exists:subjects,id'],
+            'chapter_id' => ['required', 'integer', 'exists:chapters,id'],
             'title_en' => ['required', 'string', 'max:200'],
             'title_km' => ['required', 'string', 'max:200'],
             'description' => ['nullable', 'string'],
-            'file' => ['required', 'file', 'mimes:pdf,doc,docx,ppt,pptx,png,jpg,jpeg', 'max:10240'],
+            'files' => ['required_without:file', 'array', 'min:1', 'max:20'],
+            'files.*' => ['file', 'mimes:pdf,jpg,jpeg,png,webp', 'max:20480'],
+            'file' => ['nullable', 'file', 'mimes:pdf,jpg,jpeg,png,webp', 'max:20480'],
             'is_published' => ['nullable', 'boolean'],
         ];
+    }
+
+    protected function withValidator(Validator $validator): void
+    {
+        $this->validateMaterialPlacement($validator);
+        $this->validateMaterialFiles($validator);
     }
 }

@@ -7,12 +7,14 @@ import {
     Circle,
     Download,
     FileText,
-    LibraryBig,
+    Search,
     Sparkles,
+    X,
 } from 'lucide-react';
 import { useEffect, useState } from 'react';
-import { Link, useParams } from 'react-router-dom';
+import { Link, useParams, useSearchParams } from 'react-router-dom';
 import katex from 'katex';
+import MaterialViewer, { MaterialCard } from '../../components/MaterialViewer';
 import { Badge, EmptyState, ErrorState, LoadingState, PageHeader } from '../../components/ui';
 import { useLocale } from '../../contexts/LocaleContext';
 import { useToast } from '../../contexts/ToastContext';
@@ -44,6 +46,36 @@ function RichContent({ content }) {
             })}
         </div>
     );
+}
+
+const RECENT_MATERIALS_KEY = 'bacii_studyhub.recent_materials';
+
+function readRecentMaterials() {
+    try {
+        const stored = JSON.parse(localStorage.getItem(RECENT_MATERIALS_KEY) || '[]');
+
+        return Array.isArray(stored) ? stored.slice(0, 6) : [];
+    } catch {
+        return [];
+    }
+}
+
+function toRecentEntry(material) {
+    return {
+        id: material.id,
+        title_en: material.title_en,
+        title_km: material.title_km,
+        description: material.description,
+        material_type: material.material_type,
+        file_type: material.file_type,
+        file_url: material.file_url,
+        file_name: material.file_name,
+        file_size: material.file_size,
+        subject: material.subject,
+        chapter: material.chapter,
+        files: material.files,
+        viewed_at: new Date().toISOString(),
+    };
 }
 
 export function StudentSubjects() {
@@ -117,6 +149,8 @@ export function SubjectOverview() {
     const { id } = useParams();
     const { locale, pick, t } = useLocale();
     const [subject, setSubject] = useState(null);
+    const [materials, setMaterials] = useState([]);
+    const [viewerMaterial, setViewerMaterial] = useState(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
 
@@ -125,6 +159,13 @@ export function SubjectOverview() {
             .then((response) => setSubject(unwrap(response)))
             .catch((loadError) => setError(getErrorMessage(loadError)))
             .finally(() => setLoading(false));
+    }, [id]);
+
+    useEffect(() => {
+        setMaterials([]);
+        api.get('/materials', { params: { subject_id: id, per_page: 6 } })
+            .then((response) => setMaterials(unwrap(response) || []))
+            .catch(() => setMaterials([]));
     }, [id]);
 
     if (loading) {
@@ -175,6 +216,38 @@ export function SubjectOverview() {
                             </div>
                         </section>
                     )}
+                    <section className="mb-7">
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                            <div className="flex items-center gap-2">
+                                <FileText className="size-5 text-brand-600" />
+                                <h2 className="text-lg font-semibold">{t('Revision notes for this subject')}</h2>
+                            </div>
+                            <Link to={`/app/materials?subject_id=${subject.id}`} className="text-sm font-semibold text-brand-600 hover:underline">
+                                {t('View all')}
+                            </Link>
+                        </div>
+                        {materials.length === 0 ? (
+                            <p className="mt-3 text-sm text-slate-500 dark:text-slate-400">{t('No materials for this subject yet.')}</p>
+                        ) : (
+                            <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                                {materials.map((material) => (
+                                    <button
+                                        key={material.id}
+                                        type="button"
+                                        onClick={() => setViewerMaterial(material)}
+                                        className="flex items-center justify-between gap-3 rounded-xl border border-slate-200 px-3 py-2.5 text-left text-sm transition hover:border-brand-400 hover:bg-brand-50/60 dark:border-slate-800 dark:hover:bg-slate-800"
+                                    >
+                                        <span className="min-w-0">
+                                            <span className="block truncate font-medium">{pick(material, 'title')}</span>
+                                            <span className="block truncate text-xs text-slate-500 dark:text-slate-400">{pick(material.chapter, 'title') || t('Materials')}</span>
+                                        </span>
+                                        <ArrowRight className="size-4 shrink-0 text-brand-600" />
+                                    </button>
+                                ))}
+                            </div>
+                        )}
+                    </section>
+
                     <h2 className="text-lg font-semibold">{t('Chapters')}</h2>
                     {(subject.chapters || []).length === 0 ? (
                         <div className="mt-4"><EmptyState title="No chapters available" /></div>
@@ -209,6 +282,11 @@ export function SubjectOverview() {
                     )}
                 </div>
             </div>
+            <MaterialViewer
+                material={viewerMaterial}
+                open={Boolean(viewerMaterial)}
+                onClose={() => setViewerMaterial(null)}
+            />
         </>
     );
 }
@@ -376,27 +454,241 @@ export function LessonReader() {
 }
 
 export function StudentMaterials() {
-    const { pick, t, formatDate } = useLocale();
-    const [materials, setMaterials] = useState([]);
+    const { pick, t } = useLocale();
+    const [searchParams] = useSearchParams();
+    const [tracks, setTracks] = useState([]);
+    const [subjects, setSubjects] = useState([]);
+    const [chapters, setChapters] = useState([]);
+    const [trackSlug, setTrackSlug] = useState('');
+    const [subjectId, setSubjectId] = useState(() => searchParams.get('subject_id') || '');
+    const [chapterId, setChapterId] = useState('');
+    const [search, setSearch] = useState('');
     const [page, setPage] = useState(1);
+    const [materials, setMaterials] = useState([]);
     const [meta, setMeta] = useState(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
+    const [recent, setRecent] = useState(readRecentMaterials);
+    const [viewerMaterial, setViewerMaterial] = useState(null);
 
     useEffect(() => {
-        setLoading(true);
-        api.get('/materials', { params: { page, per_page: 12 } })
+        setSubjectId(searchParams.get('subject_id') || '');
+    }, [searchParams]);
+
+    useEffect(() => {
+        Promise.all([
+            api.get('/tracks', { params: { per_page: 50 } }),
+            api.get('/subjects', { params: { per_page: 100 } }),
+        ])
+            .then(([trackResponse, subjectResponse]) => {
+                setTracks(unwrap(trackResponse) || []);
+                setSubjects(unwrap(subjectResponse) || []);
+            })
+            .catch(() => {
+                setTracks([]);
+                setSubjects([]);
+            });
+    }, []);
+
+    useEffect(() => {
+        setChapterId('');
+
+        if (!subjectId) {
+            setChapters([]);
+            return undefined;
+        }
+
+        let active = true;
+
+        api.get(`/subjects/${subjectId}`)
             .then((response) => {
+                if (active) {
+                    setChapters(unwrap(response)?.chapters || []);
+                }
+            })
+            .catch(() => {
+                if (active) {
+                    setChapters([]);
+                }
+            });
+
+        return () => {
+            active = false;
+        };
+    }, [subjectId]);
+
+    useEffect(() => {
+        const timer = window.setTimeout(async () => {
+            setLoading(true);
+            setError('');
+
+            try {
+                const response = await api.get('/materials', {
+                    params: {
+                        page,
+                        per_page: 12,
+                        search: search || undefined,
+                        track_slug: trackSlug || undefined,
+                        subject_id: subjectId || undefined,
+                        chapter_id: chapterId || undefined,
+                    },
+                });
+
                 setMaterials(unwrap(response) || []);
                 setMeta(unwrapMeta(response));
-            })
-            .catch((loadError) => setError(getErrorMessage(loadError)))
-            .finally(() => setLoading(false));
-    }, [page]);
+            } catch (loadError) {
+                setError(getErrorMessage(loadError));
+            } finally {
+                setLoading(false);
+            }
+        }, 250);
+
+        return () => window.clearTimeout(timer);
+    }, [chapterId, page, search, subjectId, trackSlug]);
+
+    const visibleSubjects = subjects.filter((subject) => !trackSlug || subject.study_track?.slug === trackSlug);
+    const hasFilters = Boolean(search || trackSlug || subjectId || chapterId);
+
+    const openMaterial = (material) => {
+        setViewerMaterial(material);
+
+        const entry = toRecentEntry(material);
+
+        setRecent((current) => {
+            const next = [entry, ...current.filter((item) => String(item.id) !== String(material.id))].slice(0, 6);
+
+            try {
+                localStorage.setItem(RECENT_MATERIALS_KEY, JSON.stringify(next));
+            } catch {
+                // Recent items remain available for this page view.
+            }
+
+            return next;
+        });
+    };
+
+    const clearFilters = () => {
+        setSearch('');
+        setTrackSlug('');
+        setSubjectId('');
+        setChapterId('');
+        setPage(1);
+    };
 
     return (
         <>
-            <PageHeader title={t('Materials')} description="Download demo revision notes and study guides." />
+            <PageHeader
+                title={t('Study materials')}
+                description={t('Read revision notes and guides directly in your browser.')}
+            />
+
+            {recent.length > 0 && (
+                <section className="mb-6">
+                    <h2 className="mb-3 text-sm font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                        {t('Recently viewed')}
+                    </h2>
+                    <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+                        {recent.map((item) => (
+                            <button
+                                key={item.id}
+                                type="button"
+                                onClick={() => setViewerMaterial(item)}
+                                className="flex items-center gap-3 rounded-xl border border-slate-200 bg-white p-3 text-left transition hover:border-brand-400 dark:border-slate-800 dark:bg-slate-900"
+                            >
+                                <span className="grid size-9 shrink-0 place-items-center rounded-lg bg-brand-50 text-brand-700 dark:bg-brand-900/40 dark:text-brand-200">
+                                    <FileText className="size-4" />
+                                </span>
+                                <span className="min-w-0 flex-1">
+                                    <span className="block truncate text-sm font-semibold">{pick(item, 'title')}</span>
+                                    <span className="block truncate text-xs text-slate-500 dark:text-slate-400">{pick(item.subject, 'name')}</span>
+                                </span>
+                            </button>
+                        ))}
+                    </div>
+                </section>
+            )}
+
+            <div className="card mb-6 p-4 sm:p-5">
+                <p className="mb-3 text-sm text-slate-600 dark:text-slate-300">
+                    {t('Choose a subject and chapter to find revision notes and images.')}
+                </p>
+                <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                    <label className="block sm:col-span-2 lg:col-span-4">
+                        <span className="mb-1.5 block text-xs font-semibold text-slate-600 dark:text-slate-300">{t('Search')}</span>
+                        <div className="relative">
+                            <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-slate-400" />
+                            <input
+                                type="search"
+                                value={search}
+                                onChange={(event) => {
+                                    setSearch(event.target.value);
+                                    setPage(1);
+                                }}
+                                placeholder={`${t('Search')} ${t('Materials').toLowerCase()}...`}
+                                className="input-field pl-9"
+                            />
+                        </div>
+                    </label>
+                    <label className="block">
+                        <span className="mb-1.5 block text-xs font-semibold text-slate-600 dark:text-slate-300">{t('Track')}</span>
+                        <select
+                            value={trackSlug}
+                            onChange={(event) => {
+                                setTrackSlug(event.target.value);
+                                setSubjectId('');
+                                setChapterId('');
+                                setPage(1);
+                            }}
+                            className="input-field"
+                        >
+                            <option value="">{t('All tracks')}</option>
+                            {tracks.map((track) => (
+                                <option key={track.id} value={track.slug}>{pick(track, 'name')}</option>
+                            ))}
+                        </select>
+                    </label>
+                    <label className="block">
+                        <span className="mb-1.5 block text-xs font-semibold text-slate-600 dark:text-slate-300">{t('Subject')}</span>
+                        <select
+                            value={subjectId}
+                            onChange={(event) => {
+                                setSubjectId(event.target.value);
+                                setChapterId('');
+                                setPage(1);
+                            }}
+                            className="input-field"
+                        >
+                            <option value="">{t('All subjects')}</option>
+                            {visibleSubjects.map((subject) => (
+                                <option key={subject.id} value={subject.id}>{pick(subject, 'name')}</option>
+                            ))}
+                        </select>
+                    </label>
+                    <label className="block">
+                        <span className="mb-1.5 block text-xs font-semibold text-slate-600 dark:text-slate-300">{t('Chapter')}</span>
+                        <select
+                            value={chapterId}
+                            onChange={(event) => {
+                                setChapterId(event.target.value);
+                                setPage(1);
+                            }}
+                            className="input-field"
+                            disabled={!subjectId}
+                        >
+                            <option value="">{t('All chapters')}</option>
+                            {chapters.map((chapter) => (
+                                <option key={chapter.id} value={chapter.id}>{pick(chapter, 'title')}</option>
+                            ))}
+                        </select>
+                    </label>
+                    {hasFilters && (
+                        <button type="button" onClick={clearFilters} className="btn-secondary self-end justify-center">
+                            <X className="size-4" /> {t('Clear filters')}
+                        </button>
+                    )}
+                </div>
+            </div>
+
             {loading ? (
                 <LoadingState />
             ) : error ? (
@@ -406,25 +698,30 @@ export function StudentMaterials() {
             ) : (
                 <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
                     {materials.map((material) => (
-                        <div key={material.id} className="card flex flex-col p-5">
-                            <Badge tone="sky">{material.file_type}</Badge>
-                            <h2 className="mt-3 font-semibold">{pick(material, 'title')}</h2>
-                            <p className="mt-1 flex-1 text-sm text-slate-500 dark:text-slate-400">{material.description}</p>
-                            <p className="mt-3 text-xs text-slate-400">{pick(material.subject, 'name')} · {formatDate(material.created_at)}</p>
-                            <a href={material.file_url} target="_blank" rel="noreferrer" className="btn-secondary mt-4">
-                                <Download className="size-4" /> {t('Download')}
-                            </a>
-                        </div>
+                        <MaterialCard key={material.id} material={material} onOpen={openMaterial} />
                     ))}
                 </div>
             )}
+
             {meta && meta.last_page > 1 && (
-                <div className="mt-5 flex justify-center gap-2">
-                    <button type="button" className="btn-secondary" disabled={page <= 1} onClick={() => setPage(page - 1)}>Previous</button>
-                    <span className="self-center text-sm">Page {meta.current_page} / {meta.last_page}</span>
-                    <button type="button" className="btn-secondary" disabled={page >= meta.last_page} onClick={() => setPage(page + 1)}>Next</button>
+                <div className="mt-6 flex flex-wrap items-center justify-center gap-2">
+                    <button type="button" className="btn-secondary" disabled={page <= 1} onClick={() => setPage(page - 1)}>
+                        {t('Previous')}
+                    </button>
+                    <span className="self-center text-sm text-slate-500 dark:text-slate-400">
+                        {t('Page')} {meta.current_page} / {meta.last_page}
+                    </span>
+                    <button type="button" className="btn-secondary" disabled={page >= meta.last_page} onClick={() => setPage(page + 1)}>
+                        {t('Next')}
+                    </button>
                 </div>
             )}
+
+            <MaterialViewer
+                material={viewerMaterial}
+                open={Boolean(viewerMaterial)}
+                onClose={() => setViewerMaterial(null)}
+            />
         </>
     );
 }
